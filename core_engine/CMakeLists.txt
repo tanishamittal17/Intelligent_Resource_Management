@@ -13,6 +13,7 @@ set(SOURCES
     src/scheduler/Scheduler.cpp
     src/resource/ResourceManager.cpp
     src/resource/SynchronizationManager.cpp
+    src/resource/DeadlockDetector.cpp
 )
 
 add_executable(IntelligentResourceManager ${SOURCES})
@@ -39,10 +40,17 @@ add_executable(test_synchronization
     src/transaction/PCB.cpp
 )
 
+add_executable(test_deadlock_detector
+    tests/test_deadlock_detector.cpp
+    src/resource/DeadlockDetector.cpp
+    src/transaction/PCB.cpp
+)
+
 enable_testing()
 add_test(NAME pcb_tests COMMAND test_pcb)
 add_test(NAME scheduler_tests COMMAND test_scheduler)
 add_test(NAME resource_manager_tests COMMAND test_resource_manager)
 add_test(NAME synchronization_tests COMMAND test_synchronization)
+add_test(NAME deadlock_detector_tests COMMAND test_deadlock_detector)
 
 # Future: Add Google Test, MySQL connector paths, etc.

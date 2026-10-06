@@ -33,8 +33,12 @@ Priority scheduling chooses the largest `PCB::priority` value first. When priori
 
 ## Basic Resource Management
 
-The resource manager tracks named resources by ID, including their total and available units. A process allocates units through the manager; successful allocations are recorded against that PCB's process ID and reduce availability. A process can release only units it previously allocated, which returns those units to availability. Allocation and release requests with invalid quantities or insufficient holdings are rejected. Deadlock detection is not implemented yet.
+The resource manager tracks named resources by ID, including their total and available units. A process allocates units through the manager; successful allocations are recorded against that PCB's process ID and reduce availability. A process can release only units it previously allocated, which returns those units to availability. Allocation and release requests with invalid quantities or insufficient holdings are rejected.
 
 ## Basic Synchronization
 
-A mutex provides exclusive access to a shared resource: one PCB locks it, and only that owner can unlock it. A counting semaphore tracks a bounded number of available permits; processes wait to acquire a permit and signal to return one. These simple simulation objects let processes coordinate access to shared resources. Deadlock detection is not implemented yet.
+A mutex provides exclusive access to a shared resource: one PCB locks it, and only that owner can unlock it. A counting semaphore tracks a bounded number of available permits; processes wait to acquire a permit and signal to return one. These simple simulation objects let processes coordinate access to shared resources.
+
+## Deadlock Detection
+
+A deadlock occurs when processes wait on one another in a circular chain and none can proceed. The detector represents each process as a node in a wait-for graph and adds an edge from a waiting process to the process holding the resource it needs. A depth-first search looks for a cycle; a cycle is reported as a deadlock along with the process IDs in that cycle. Tests cover empty and acyclic graphs, two- and three-process cycles, cycle identification, and removal of a dependency or process. This milestone detects deadlocks only; it does not implement recovery or Banker's algorithm.
