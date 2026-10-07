@@ -42,3 +42,38 @@ A mutex provides exclusive access to a shared resource: one PCB locks it, and on
 ## Deadlock Detection
 
 A deadlock occurs when processes wait on one another in a circular chain and none can proceed. The detector represents each process as a node in a wait-for graph and adds an edge from a waiting process to the process holding the resource it needs. A depth-first search looks for a cycle; a cycle is reported as a deadlock along with the process IDs in that cycle. Tests cover empty and acyclic graphs, two- and three-process cycles, cycle identification, and removal of a dependency or process. This milestone detects deadlocks only; it does not implement recovery or Banker's algorithm.
+
+## C++ MySQL Connection
+
+The database layer uses the MySQL Server C API (`mysql_init`, `mysql_real_connect`, and the query/result functions). CMake looks for `mysql.h`, the MySQL client import library, and the runtime DLL under `MYSQL_SERVER_ROOT`. The default is `C:/Program Files/MySQL/MySQL Server 8.0`; override it when MySQL Server is installed elsewhere. If the header or import library is missing, CMake keeps the engine and other tests buildable and disables the database target with a status message.
+
+The connection reads credentials from environment variables and never prints the password. `DB_USER` and `DB_PASSWORD` are required. `DB_HOST` defaults to `localhost`, `DB_PORT` defaults to `3306`, and `DB_NAME` defaults to `resource_management_db`.
+
+For Windows/MSYS2 UCRT64, configure with the installed MySQL Server files and build the database test:
+
+```powershell
+cmake -S core_engine -B core_engine/build -DMYSQL_SERVER_ROOT="C:/Program Files/MySQL/MySQL Server 8.0"
+cmake --build core_engine/build --target test_database
+$env:PATH = 'C:\Program Files\MySQL\MySQL Server 8.0\bin;C:\Program Files\MySQL\MySQL Server 8.0\lib;' + $env:PATH
+$env:DB_USER = Read-Host 'DB_USER'
+$secret = Read-Host 'DB_PASSWORD' -AsSecureString
+$env:DB_PASSWORD = [System.Net.NetworkCredential]::new('', $secret).Password
+ctest --test-dir core_engine/build --output-on-failure -R database_tests
+```
+
+With CMake unavailable, the equivalent direct UCRT64 build is:
+
+```powershell
+$mysqlRoot = 'C:\Program Files\MySQL\MySQL Server 8.0'
+g++ -std=c++17 -Wall -Wextra -Wpedantic -I core_engine/include -I "$mysqlRoot\include" core_engine/tests/test_database.cpp core_engine/src/db/Database.cpp "$mysqlRoot\lib\libmysql.lib" -o core_engine/build/test_database.exe
+```
+
+Add `$mysqlRoot\bin` and `$mysqlRoot\lib` to `PATH` before running `core_engine/build/test_database.exe`. The test runs `SELECT COUNT(*) FROM Accounts`, reads the seeded transaction records, and then disconnects.
+
+## Reading Transactions from MySQL
+
+C++ reads transaction records from MySQL and converts them into the existing `Transaction` model. `Database::fetchTransactions()` selects the transaction ID, type, source and destination account IDs, amount, and priority in transaction ID order. A nullable destination account is represented as `-1` in the model.
+
+Each database transaction record can now be represented as an OS-style PCB/process with `PCB::createFromTransaction()`. The factory preserves the transaction details and priority, assigns a process ID, initializes the PCB in the `NEW` state, and uses simple default timing values so the process can be passed to the existing CPU schedulers.
+
+MySQL Server and the existing `resource_management_db` database are already installed. This layer uses that database and the existing `Accounts` table; it does not create or modify the database or schema.

@@ -25,6 +25,27 @@ int main() {
     assertTest(pcb.state == ProcessState::NEW, "Initial state is NEW");
     assertTest(pcb.remainingTime == 10, "Initial remaining time equals burst time");
 
+    // A database-style transaction can be represented as a PCB without MySQL access.
+    const Transaction deposit{202, TransactionType::DEPOSIT, 1, -1, 125.50, 7};
+    const PCB depositProcess = PCB::createFromTransaction(deposit);
+    assertTest(depositProcess.processID > pcb.processID, "Transaction factory generates a process ID");
+    assertTest(depositProcess.transactionID == deposit.transactionID,
+               "Factory preserves the transaction ID");
+    assertTest(depositProcess.transaction.type == TransactionType::DEPOSIT,
+               "Factory creates a PCB for a DEPOSIT transaction");
+    assertTest(depositProcess.transaction.amount == deposit.amount &&
+               depositProcess.transaction.sourceAccountID == deposit.sourceAccountID &&
+               depositProcess.transaction.destinationAccountID == deposit.destinationAccountID,
+               "Factory preserves transaction details");
+    assertTest(depositProcess.priority == deposit.priority,
+               "Factory copies transaction priority to the PCB");
+    assertTest(depositProcess.state == ProcessState::NEW,
+               "Factory-created PCB starts in NEW state");
+    assertTest(depositProcess.arrivalTime == 0 && depositProcess.burstTime > 0,
+               "Factory uses a valid burst time and default arrival time");
+    assertTest(depositProcess.remainingTime == depositProcess.burstTime,
+               "Factory initializes remaining time to burst time");
+
     // Test 2: State transition
     pcb.changeState(ProcessState::READY);
     assertTest(pcb.state == ProcessState::READY, "State transition to READY");

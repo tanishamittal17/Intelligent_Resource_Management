@@ -29,6 +29,30 @@ PCB makeProcess(int processID, int arrivalTime, int burstTime, int priority = 0)
 } // namespace
 
 int main() {
+    const Transaction fetchedTransaction{909, TransactionType::DEPOSIT, 4, -1, 25.0, 6};
+    const PCB transactionProcess = PCB::createFromTransaction(fetchedTransaction);
+    {
+        std::vector<PCB> processes{transactionProcess};
+        const auto results = FCFSScheduler{}.schedule(processes);
+        expect(results.size() == 1 && results[0].processID == transactionProcess.processID &&
+               processes[0].state == ProcessState::COMPLETED,
+               "FCFS accepts a PCB created from a transaction");
+    }
+    {
+        std::vector<PCB> processes{transactionProcess};
+        const auto results = RoundRobinScheduler(1).schedule(processes);
+        expect(results.size() == 1 && results[0].processID == transactionProcess.processID &&
+               processes[0].state == ProcessState::COMPLETED,
+               "Round Robin accepts a PCB created from a transaction");
+    }
+    {
+        std::vector<PCB> processes{transactionProcess};
+        const auto results = PriorityScheduler{}.schedule(processes);
+        expect(results.size() == 1 && results[0].processID == transactionProcess.processID &&
+               processes[0].state == ProcessState::COMPLETED,
+               "Priority scheduling accepts a PCB created from a transaction");
+    }
+
     {
         // Input order differs from arrival order. P2 arrives at time 1, P1 at time 2.
         std::vector<PCB> processes{

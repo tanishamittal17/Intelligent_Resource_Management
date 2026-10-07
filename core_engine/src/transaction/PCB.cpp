@@ -1,5 +1,7 @@
 #include "PCB.hpp"
 
+int PCB::nextProcessID = 1;
+
 PCB::PCB(int pID, Transaction txn, int arrTime, int bTime)
     : processID(pID), 
       transactionID(txn.transactionID), 
@@ -8,7 +10,15 @@ PCB::PCB(int pID, Transaction txn, int arrTime, int bTime)
       remainingTime(bTime), 
       priority(txn.priority),
       state(ProcessState::NEW), 
-      transaction(txn) {}
+      transaction(txn) {
+    if (pID >= nextProcessID) {
+        nextProcessID = pID + 1;
+    }
+}
+
+PCB PCB::createFromTransaction(const Transaction& transaction, int arrivalTime, int burstTime) {
+    return PCB(nextProcessID++, transaction, arrivalTime, burstTime);
+}
 
 void PCB::displayInfo() const {
     std::cout << "--- PCB Info ---\n"
