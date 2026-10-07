@@ -70,6 +70,64 @@ int main() {
     expect(priorityResults.size() == transactions.size() && allCompleted(simulator.getProcesses()),
            "Priority scheduling schedules the generated PCBs");
 
+    {
+        TransactionSimulator executionSimulator;
+        executionSimulator.loadTransactions({
+            {601, TransactionType::DEPOSIT, 1, -1, 20.0, 3}
+        }, 0, 1);
+        PCB& process = executionSimulator.getProcesses()[0];
+        const Resource* resource = executionSimulator.getResourceManager().getResource(
+            TransactionSimulator::SIMULATED_RESOURCE_ID);
+        expect(resource != nullptr && resource->name == "CPU_IO" && resource->availableUnits == 1,
+               "Simulator registers one available CPU_IO unit");
+        expect(executionSimulator.executeProcess(process),
+               "Process executes while CPU_IO is available");
+        expect(process.state == ProcessState::COMPLETED && process.remainingTime == 0,
+               "One-unit process completes after execution");
+        resource = executionSimulator.getResourceManager().getResource(
+            TransactionSimulator::SIMULATED_RESOURCE_ID);
+        expect(resource != nullptr && resource->availableUnits == 1 &&
+               executionSimulator.getResourceManager().getAllocatedUnits(
+                   process, TransactionSimulator::SIMULATED_RESOURCE_ID) == 0,
+               "CPU_IO is released after successful execution");
+    }
+
+    {
+        TransactionSimulator blockedSimulator;
+        blockedSimulator.loadTransactions({
+            {602, TransactionType::TRANSFER, 2, 3, 45.0, 4}
+        }, 0, 3);
+        PCB& process = blockedSimulator.getProcesses()[0];
+        Transaction holderTransaction{999, TransactionType::DEPOSIT, 8, -1, 1.0, 1};
+        PCB holder = PCB::createFromTransaction(holderTransaction);
+        ResourceManager& resources = blockedSimulator.getResourceManager();
+        const bool occupied = resources.allocate(
+            holder, TransactionSimulator::SIMULATED_RESOURCE_ID, 1);
+        expect(occupied, "Test process can occupy the CPU_IO resource");
+        expect(!blockedSimulator.executeProcess(process),
+               "Execution fails gracefully when CPU_IO is unavailable");
+        expect(process.state == ProcessState::WAITING && process.remainingTime == 3,
+               "Blocked process waits without losing burst time");
+        expect(resources.getResource(TransactionSimulator::SIMULATED_RESOURCE_ID)->availableUnits == 0,
+               "Unavailable CPU_IO remains allocated to its owner");
+        expect(resources.release(holder, TransactionSimulator::SIMULATED_RESOURCE_ID, 1),
+               "CPU_IO can be released by its owning process");
+    }
+
+    {
+        TransactionSimulator partialSimulator;
+        partialSimulator.loadTransactions({
+            {603, TransactionType::WITHDRAWAL, 4, -1, 15.0, 1}
+        }, 0, 2);
+        PCB& process = partialSimulator.getProcesses()[0];
+        expect(partialSimulator.executeProcess(process) && process.remainingTime == 1 &&
+               process.state == ProcessState::READY,
+               "Execution performs one unit of work and readies an unfinished process");
+        expect(partialSimulator.getResourceManager().getResource(
+                   TransactionSimulator::SIMULATED_RESOURCE_ID)->availableUnits == 1,
+               "CPU_IO is released after partial execution");
+    }
+
     std::cout << "\nTransaction simulator tests: " << testsPassed << " passed, "
               << testsFailed << " failed.\n";
     return testsFailed == 0 ? EXIT_SUCCESS : EXIT_FAILURE;

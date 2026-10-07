@@ -55,6 +55,7 @@ add_executable(test_transaction_simulator
     tests/test_transaction_simulator.cpp
     src/transaction/TransactionSimulator.cpp
     src/scheduler/Scheduler.cpp
+    src/resource/ResourceManager.cpp
     src/transaction/PCB.cpp
 )
 

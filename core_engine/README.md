@@ -80,4 +80,6 @@ Each database transaction record can now be represented as an OS-style PCB/proce
 
 `TransactionSimulator` connects transaction records to process creation and CPU scheduling. It accepts `Transaction` objects (including those returned by `Database::fetchTransactions()`), creates and stores one PCB per transaction, and delegates FCFS, Round Robin, or Priority scheduling to the existing scheduler classes. Its unit tests use manually created transactions and do not need a MySQL connection.
 
+During basic process execution, the simulator requests one unit of the shared OS-style `CPU_IO` resource from `ResourceManager`, performs one unit of work, and releases the resource. If the resource is already allocated, the PCB enters `WAITING` and can retry later. This is a deterministic simulation and does not update account balances or add threading.
+
 MySQL Server and the existing `resource_management_db` database are already installed. This layer uses that database and the existing `Accounts` table; it does not create or modify the database or schema.
