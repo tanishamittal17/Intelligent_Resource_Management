@@ -82,4 +82,8 @@ Each database transaction record can now be represented as an OS-style PCB/proce
 
 During basic process execution, the simulator requests one unit of the shared OS-style `CPU_IO` resource from `ResourceManager`, performs one unit of work, and releases the resource. If the resource is already allocated, the PCB enters `WAITING` and can retry later. This is a deterministic simulation and does not update account balances or add threading.
 
+## Synchronization Contention in the Simulator
+
+The simulator registers a shared `TRANSACTION_CRITICAL_SECTION` mutex through the existing `SynchronizationManager`. A process executes one unit of work only while holding this mutex, then releases it. If another process owns the mutex, an execution attempt leaves the waiting process's burst time unchanged and sets it to `WAITING`. This models deterministic critical-section contention without threads.
+
 MySQL Server and the existing `resource_management_db` database are already installed. This layer uses that database and the existing `Accounts` table; it does not create or modify the database or schema.

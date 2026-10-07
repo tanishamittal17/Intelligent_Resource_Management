@@ -128,6 +128,68 @@ int main() {
                "CPU_IO is released after partial execution");
     }
 
+    {
+        TransactionSimulator synchronizedSimulator;
+        synchronizedSimulator.loadTransactions({
+            {701, TransactionType::DEPOSIT, 1, -1, 10.0, 1},
+            {702, TransactionType::TRANSFER, 2, 3, 12.0, 2}
+        }, 0, 2);
+        std::vector<PCB>& processes = synchronizedSimulator.getProcesses();
+        SynchronizationManager& synchronization = synchronizedSimulator.getSynchronizationManager();
+        const Mutex* criticalSection = synchronization.getMutex(
+            TransactionSimulator::TRANSACTION_MUTEX_NAME);
+        expect(criticalSection != nullptr && !criticalSection->isLocked(),
+               "Simulator registers the unlocked shared transaction mutex");
+
+        expect(synchronization.acquireMutex(processes[0],
+                                            TransactionSimulator::TRANSACTION_MUTEX_NAME),
+               "First process acquires the transaction critical section");
+        criticalSection = synchronization.getMutex(TransactionSimulator::TRANSACTION_MUTEX_NAME);
+        expect(criticalSection != nullptr && criticalSection->isLocked() &&
+               criticalSection->getOwnerProcessID() == processes[0].processID,
+               "Shared mutex reports its owner");
+
+        const int blockedRemainingTime = processes[1].remainingTime;
+        expect(!synchronizedSimulator.executeWithSynchronization(processes[1].processID),
+               "Second process cannot enter an owned critical section");
+        expect(processes[1].state == ProcessState::WAITING &&
+               processes[1].remainingTime == blockedRemainingTime,
+               "Blocked process waits without using burst time");
+
+        expect(synchronization.releaseMutex(processes[0],
+                                            TransactionSimulator::TRANSACTION_MUTEX_NAME),
+               "First process releases the transaction critical section");
+        expect(synchronizedSimulator.executeWithSynchronization(processes[1].processID),
+               "Second process executes after the mutex becomes available");
+        expect(processes[1].state == ProcessState::READY && processes[1].remainingTime == 1,
+               "Unfinished synchronized process returns to READY after one unit");
+        criticalSection = synchronization.getMutex(TransactionSimulator::TRANSACTION_MUTEX_NAME);
+        expect(criticalSection != nullptr && !criticalSection->isLocked(),
+               "Successful synchronized execution releases the mutex");
+
+        expect(synchronizedSimulator.executeWithSynchronization(processes[0].processID),
+               "First process can execute after releasing the mutex");
+        expect(processes[0].state == ProcessState::READY && processes[0].remainingTime == 1,
+               "First unfinished process returns to READY");
+        expect(!synchronizedSimulator.executeWithSynchronization(-1),
+               "Unknown process ID is rejected");
+    }
+
+    {
+        TransactionSimulator oneUnitSimulator;
+        oneUnitSimulator.loadTransactions({
+            {703, TransactionType::WITHDRAWAL, 4, -1, 5.0, 1}
+        }, 0, 1);
+        PCB& process = oneUnitSimulator.getProcesses()[0];
+        expect(oneUnitSimulator.executeWithSynchronization(process.processID) &&
+               process.state == ProcessState::COMPLETED && process.remainingTime == 0,
+               "One-unit synchronized process reaches COMPLETED");
+        const Mutex* criticalSection = oneUnitSimulator.getSynchronizationManager().getMutex(
+            TransactionSimulator::TRANSACTION_MUTEX_NAME);
+        expect(criticalSection != nullptr && !criticalSection->isLocked(),
+               "Mutex is released after one-unit process completion");
+    }
+
     std::cout << "\nTransaction simulator tests: " << testsPassed << " passed, "
               << testsFailed << " failed.\n";
     return testsFailed == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
