@@ -2,6 +2,7 @@
 
 #include <cctype>
 #include <cstdlib>
+#include <cstring>
 #include <memory>
 #include <limits>
 #include <stdexcept>
@@ -61,6 +62,19 @@ struct ResultDeleter {
         }
     }
 };
+
+struct StatementDeleter {
+    void operator()(MYSQL_STMT* statement) const {
+        if (statement != nullptr) {
+            mysql_stmt_close(statement);
+        }
+    }
+};
+
+bool isValidTransactionStatus(const std::string& status) {
+    return status == "PENDING" || status == "RUNNING" || status == "COMPLETED" ||
+           status == "FAILED" || status == "ROLLED_BACK";
+}
 
 } // namespace
 
@@ -251,6 +265,66 @@ std::vector<Transaction> Database::fetchTransactions() {
         }
         return {};
     }
+}
+
+bool Database::updateTransactionStatus(int transactionId, const std::string& status) {
+    if (!isConnected()) {
+        lastError = "Cannot update transaction status: database is not connected";
+        return false;
+    }
+    if (transactionId <= 0) {
+        lastError = "Transaction ID must be a positive integer";
+        return false;
+    }
+    if (!isValidTransactionStatus(status)) {
+        lastError = "Invalid transaction status; allowed values are PENDING, RUNNING, COMPLETED, FAILED, and ROLLED_BACK";
+        return false;
+    }
+
+    MYSQL_STMT* rawStatement = mysql_stmt_init(connection);
+    if (rawStatement == nullptr) {
+        lastError = "Could not initialize MySQL status update statement";
+        return false;
+    }
+    std::unique_ptr<MYSQL_STMT, StatementDeleter> statement(rawStatement);
+
+    const char* query = "UPDATE Transactions SET Status = ? WHERE TransactionID = ?";
+    if (mysql_stmt_prepare(statement.get(), query,
+                           static_cast<unsigned long>(std::strlen(query))) != 0) {
+        lastError = "Could not prepare transaction status update: " +
+                    std::string(mysql_stmt_error(statement.get())) + " (error code " +
+                    std::to_string(mysql_stmt_errno(statement.get())) + ")";
+        return false;
+    }
+
+    unsigned long statusLength = static_cast<unsigned long>(status.size());
+    int boundTransactionId = transactionId;
+    MYSQL_BIND parameters[2]{};
+    parameters[0].buffer_type = MYSQL_TYPE_STRING;
+    parameters[0].buffer = const_cast<char*>(status.c_str());
+    parameters[0].buffer_length = statusLength;
+    parameters[0].length = &statusLength;
+    parameters[1].buffer_type = MYSQL_TYPE_LONG;
+    parameters[1].buffer = &boundTransactionId;
+    parameters[1].is_unsigned = 0;
+
+    if (mysql_stmt_bind_param(statement.get(), parameters) != 0) {
+        lastError = "Could not bind transaction status update parameters: " +
+                    std::string(mysql_stmt_error(statement.get())) + " (error code " +
+                    std::to_string(mysql_stmt_errno(statement.get())) + ")";
+        return false;
+    }
+    if (mysql_stmt_execute(statement.get()) != 0) {
+        lastError = "Transaction status update failed: " +
+                    std::string(mysql_stmt_error(statement.get())) + " (error code " +
+                    std::to_string(mysql_stmt_errno(statement.get())) + ")";
+        return false;
+    }
+
+    // A zero affected-row count is also a successful statement when the stored
+    // status already matches the requested value.
+    lastError.clear();
+    return true;
 }
 
 const std::string& Database::getLastError() const noexcept {

@@ -74,6 +74,8 @@ Add `$mysqlRoot\bin` and `$mysqlRoot\lib` to `PATH` before running `core_engine/
 
 C++ reads transaction records from MySQL and converts them into the existing `Transaction` model. `Database::fetchTransactions()` selects the transaction ID, type, source and destination account IDs, amount, and priority in transaction ID order. A nullable destination account is represented as `-1` in the model.
 
+`Database::updateTransactionStatus()` updates only the existing `Transactions.Status` column using a prepared MySQL C API statement. It accepts `PENDING`, `RUNNING`, `COMPLETED`, `FAILED`, and `ROLLED_BACK`; it does not change the schema or account balances.
+
 Each database transaction record can now be represented as an OS-style PCB/process with `PCB::createFromTransaction()`. The factory preserves the transaction details and priority, assigns a process ID, initializes the PCB in the `NEW` state, and uses simple default timing values so the process can be passed to the existing CPU schedulers.
 
 ## Transaction Simulation Flow
@@ -89,5 +91,7 @@ The simulator registers a shared `TRANSACTION_CRITICAL_SECTION` mutex through th
 ## End-to-End Transaction Simulation
 
 `TransactionSimulator::runEndToEndSimulation()` accepts already-loaded transaction records, creates PCBs, orders them with the existing FCFS scheduler, and simulates one unit of work at a time. Each unit uses the existing `CPU_IO` resource and transaction critical-section mutex, releasing both after the step. The simulator retries runnable work in deterministic passes and stops if no process can make progress. `getSimulationSummary()` reports total, completed, waiting, and failed process counts. The database remains responsible for loading records; the unit tests provide transactions directly and do not need MySQL credentials.
+
+After a simulation, `TransactionSimulator::updateDatabaseStatuses()` can synchronize terminal process results with MySQL: `COMPLETED` PCBs update their transaction to `COMPLETED`, and `FAILED` PCBs update it to `FAILED`. New, ready, running, and waiting PCBs do not write a terminal status. The database integration test temporarily changes one existing transaction status and restores its original value before exiting.
 
 MySQL Server and the existing `resource_management_db` database are already installed. This layer uses that database and the existing `Accounts` table; it does not create or modify the database or schema.

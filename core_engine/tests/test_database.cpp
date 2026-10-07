@@ -5,6 +5,7 @@
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <utility>
 
 namespace {
 
@@ -20,6 +21,32 @@ bool expect(bool condition, const std::string& description) {
 bool isEnvironmentSet(const char* name) {
     return std::getenv(name) != nullptr;
 }
+
+class TransactionStatusRestore {
+public:
+    TransactionStatusRestore(Database& database, int transactionID, std::string originalStatus)
+        : database(database), transactionID(transactionID), originalStatus(std::move(originalStatus)) {}
+
+    ~TransactionStatusRestore() {
+        if (active) {
+            database.updateTransactionStatus(transactionID, originalStatus);
+        }
+    }
+
+    bool restore() {
+        const bool restored = database.updateTransactionStatus(transactionID, originalStatus);
+        if (restored) {
+            active = false;
+        }
+        return restored;
+    }
+
+private:
+    Database& database;
+    int transactionID;
+    std::string originalStatus;
+    bool active = true;
+};
 
 const char* typeName(TransactionType type) {
     switch (type) {
@@ -98,6 +125,42 @@ int main() {
     allPassed = expect(hasExpectedType, "Seeded TRANSFER transaction type is present") && allPassed;
     allPassed = expect(database->getLastError().empty(), "Transaction rows were fetched without errors") &&
                 allPassed;
+
+    try {
+        const QueryResult selected = database->executeSelect(
+            "SELECT TransactionID, Status FROM Transactions ORDER BY TransactionID LIMIT 1");
+        const bool hasKnownTransaction = selected.rows.size() == 1 && selected.rows[0].size() == 2;
+        allPassed = expect(hasKnownTransaction, "A seeded transaction status can be selected") && allPassed;
+        if (hasKnownTransaction) {
+            const int transactionID = std::stoi(selected.rows[0][0]);
+            const std::string originalStatus = selected.rows[0][1];
+            TransactionStatusRestore restoreStatus(*database, transactionID, originalStatus);
+
+            const bool invalidStatusRejected =
+                !database->updateTransactionStatus(transactionID, "NOT_A_STATUS") &&
+                !database->getLastError().empty();
+            allPassed = expect(invalidStatusRejected, "Invalid transaction status is rejected") && allPassed;
+
+            const bool updateSucceeded = database->updateTransactionStatus(transactionID, "RUNNING");
+            allPassed = expect(updateSucceeded, "Seeded transaction status updates to RUNNING") && allPassed;
+            const QueryResult runningStatus = database->executeSelect(
+                "SELECT Status FROM Transactions WHERE TransactionID = " + std::to_string(transactionID));
+            allPassed = expect(runningStatus.rows.size() == 1 && runningStatus.rows[0].size() == 1 &&
+                               runningStatus.rows[0][0] == "RUNNING",
+                               "Database stores RUNNING for the selected transaction") && allPassed;
+
+            const bool restored = restoreStatus.restore();
+            allPassed = expect(restored, "Original transaction status is restored") && allPassed;
+            const QueryResult restoredStatus = database->executeSelect(
+                "SELECT Status FROM Transactions WHERE TransactionID = " + std::to_string(transactionID));
+            allPassed = expect(restoredStatus.rows.size() == 1 && restoredStatus.rows[0].size() == 1 &&
+                               restoredStatus.rows[0][0] == originalStatus,
+                               "Database confirms the original transaction status") && allPassed;
+        }
+    } catch (const std::exception& error) {
+        std::cout << "[FAIL] Transaction status update test: " << error.what() << '\n';
+        allPassed = false;
+    }
 
     database->disconnect();
     allPassed = expect(!database->isConnected(), "Disconnect closes the database connection") && allPassed;

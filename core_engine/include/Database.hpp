@@ -29,6 +29,9 @@ public:
     // Reads transaction rows and converts them to the existing Transaction model.
     std::vector<Transaction> fetchTransactions();
 
+    // Updates only Transactions.Status for an existing connection.
+    bool updateTransactionStatus(int transactionId, const std::string& status);
+
     const std::string& getLastError() const noexcept;
 
 private:

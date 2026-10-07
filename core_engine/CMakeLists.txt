@@ -34,7 +34,7 @@ set(SOURCES
 )
 
 if(MYSQL_C_API_AVAILABLE)
-    list(APPEND SOURCES src/db/Database.cpp)
+    list(APPEND SOURCES src/db/Database.cpp src/db/TransactionSimulatorDatabase.cpp)
 endif()
 
 add_executable(IntelligentResourceManager ${SOURCES})

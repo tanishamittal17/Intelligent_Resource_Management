@@ -194,3 +194,18 @@ SimulationSummary TransactionSimulator::getSimulationSummary() const noexcept {
     }
     return summary;
 }
+
+const char* TransactionSimulator::getTerminalDatabaseStatus(ProcessState state) noexcept {
+    switch (state) {
+        case ProcessState::COMPLETED:
+            return "COMPLETED";
+        case ProcessState::FAILED:
+            return "FAILED";
+        case ProcessState::NEW:
+        case ProcessState::READY:
+        case ProcessState::RUNNING:
+        case ProcessState::WAITING:
+            return nullptr;
+    }
+    return nullptr;
+}

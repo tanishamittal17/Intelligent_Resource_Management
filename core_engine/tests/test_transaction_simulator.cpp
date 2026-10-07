@@ -224,6 +224,26 @@ int main() {
         expect(recordsPreserved, "End-to-end PCBs preserve transaction IDs and priorities");
         expect(recordsCompleted, "Every end-to-end PCB completes with zero remaining time");
 
+        bool completedStatesMapCorrectly = true;
+        for (const PCB& process : firstRunProcesses) {
+            const char* terminalStatus =
+                TransactionSimulator::getTerminalDatabaseStatus(process.state);
+            completedStatesMapCorrectly = completedStatesMapCorrectly && terminalStatus != nullptr &&
+                                          std::string(terminalStatus) == "COMPLETED";
+        }
+        expect(completedStatesMapCorrectly,
+               "Completed PCBs map to the COMPLETED database status");
+        expect(TransactionSimulator::getTerminalDatabaseStatus(ProcessState::FAILED) != nullptr &&
+               std::string(TransactionSimulator::getTerminalDatabaseStatus(ProcessState::FAILED)) == "FAILED",
+               "Failed PCBs map to the FAILED database status");
+        const bool nonTerminalStatesHaveNoStatus =
+            TransactionSimulator::getTerminalDatabaseStatus(ProcessState::NEW) == nullptr &&
+            TransactionSimulator::getTerminalDatabaseStatus(ProcessState::READY) == nullptr &&
+            TransactionSimulator::getTerminalDatabaseStatus(ProcessState::RUNNING) == nullptr &&
+            TransactionSimulator::getTerminalDatabaseStatus(ProcessState::WAITING) == nullptr;
+        expect(nonTerminalStatesHaveNoStatus,
+               "Non-terminal PCB states do not map to a terminal database status");
+
         expect(endToEndSimulator.runEndToEndSimulation(endToEndTransactions),
                "Repeated end-to-end simulation also completes successfully");
         const std::vector<PCB>& secondRunProcesses = endToEndSimulator.getProcesses();

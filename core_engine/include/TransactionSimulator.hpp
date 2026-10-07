@@ -19,6 +19,8 @@ struct SimulationSummary {
     int failedTransactions;
 };
 
+class Database;
+
 class TransactionSimulator {
 public:
     static constexpr int SIMULATED_RESOURCE_ID = 1;
@@ -55,6 +57,10 @@ public:
     // Returns true only when every transaction reaches COMPLETED.
     bool runEndToEndSimulation(const std::vector<Transaction>& transactions);
     SimulationSummary getSimulationSummary() const noexcept;
+
+    // Updates MySQL only for terminal PCB states; other states have no status mapping.
+    bool updateDatabaseStatuses(Database& database) const;
+    static const char* getTerminalDatabaseStatus(ProcessState state) noexcept;
 
 private:
     std::vector<PCB> processes;
