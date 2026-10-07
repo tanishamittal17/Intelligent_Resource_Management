@@ -76,4 +76,8 @@ C++ reads transaction records from MySQL and converts them into the existing `Tr
 
 Each database transaction record can now be represented as an OS-style PCB/process with `PCB::createFromTransaction()`. The factory preserves the transaction details and priority, assigns a process ID, initializes the PCB in the `NEW` state, and uses simple default timing values so the process can be passed to the existing CPU schedulers.
 
+## Transaction Simulation Flow
+
+`TransactionSimulator` connects transaction records to process creation and CPU scheduling. It accepts `Transaction` objects (including those returned by `Database::fetchTransactions()`), creates and stores one PCB per transaction, and delegates FCFS, Round Robin, or Priority scheduling to the existing scheduler classes. Its unit tests use manually created transactions and do not need a MySQL connection.
+
 MySQL Server and the existing `resource_management_db` database are already installed. This layer uses that database and the existing `Accounts` table; it does not create or modify the database or schema.

@@ -26,6 +26,7 @@ include_directories(include)
 set(SOURCES
     src/main.cpp
     src/transaction/PCB.cpp
+    src/transaction/TransactionSimulator.cpp
     src/scheduler/Scheduler.cpp
     src/resource/ResourceManager.cpp
     src/resource/SynchronizationManager.cpp
@@ -49,6 +50,13 @@ endif()
 
 # Basic PCB Tests
 add_executable(test_pcb tests/test_pcb.cpp src/transaction/PCB.cpp)
+
+add_executable(test_transaction_simulator
+    tests/test_transaction_simulator.cpp
+    src/transaction/TransactionSimulator.cpp
+    src/scheduler/Scheduler.cpp
+    src/transaction/PCB.cpp
+)
 
 # Baseline scheduling algorithm tests
 add_executable(test_scheduler
@@ -92,6 +100,7 @@ endif()
 
 enable_testing()
 add_test(NAME pcb_tests COMMAND test_pcb)
+add_test(NAME transaction_simulator_tests COMMAND test_transaction_simulator)
 add_test(NAME scheduler_tests COMMAND test_scheduler)
 add_test(NAME resource_manager_tests COMMAND test_resource_manager)
 add_test(NAME synchronization_tests COMMAND test_synchronization)
