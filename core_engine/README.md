@@ -86,4 +86,8 @@ During basic process execution, the simulator requests one unit of the shared OS
 
 The simulator registers a shared `TRANSACTION_CRITICAL_SECTION` mutex through the existing `SynchronizationManager`. A process executes one unit of work only while holding this mutex, then releases it. If another process owns the mutex, an execution attempt leaves the waiting process's burst time unchanged and sets it to `WAITING`. This models deterministic critical-section contention without threads.
 
+## End-to-End Transaction Simulation
+
+`TransactionSimulator::runEndToEndSimulation()` accepts already-loaded transaction records, creates PCBs, orders them with the existing FCFS scheduler, and simulates one unit of work at a time. Each unit uses the existing `CPU_IO` resource and transaction critical-section mutex, releasing both after the step. The simulator retries runnable work in deterministic passes and stops if no process can make progress. `getSimulationSummary()` reports total, completed, waiting, and failed process counts. The database remains responsible for loading records; the unit tests provide transactions directly and do not need MySQL credentials.
+
 MySQL Server and the existing `resource_management_db` database are already installed. This layer uses that database and the existing `Accounts` table; it does not create or modify the database or schema.

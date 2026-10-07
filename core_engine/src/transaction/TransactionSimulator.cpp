@@ -110,3 +110,87 @@ bool TransactionSimulator::executeWithSynchronization(int processID) {
     process->changeState(completed ? ProcessState::COMPLETED : ProcessState::READY);
     return true;
 }
+
+bool TransactionSimulator::runEndToEndSimulation(const std::vector<Transaction>& transactions) {
+    loadTransactions(transactions);
+
+    // Reuse FCFS to establish deterministic execution order. The scheduler completes
+    // its input PCBs while calculating metrics, so restore their burst/state for the
+    // resource-aware unit-by-unit execution below.
+    std::vector<SchedulingResult> schedule = FCFSScheduler{}.schedule(processes);
+    std::stable_sort(schedule.begin(), schedule.end(), [](const SchedulingResult& left,
+                                                          const SchedulingResult& right) {
+        return left.completionTime < right.completionTime;
+    });
+
+    std::vector<PCB*> executionOrder;
+    executionOrder.reserve(schedule.size());
+    for (const SchedulingResult& scheduled : schedule) {
+        const auto process = std::find_if(processes.begin(), processes.end(), [&scheduled](const PCB& candidate) {
+            return candidate.processID == scheduled.processID;
+        });
+        if (process == processes.end()) {
+            return false;
+        }
+        process->remainingTime = process->burstTime;
+        if (process->remainingTime == 0) {
+            process->changeState(ProcessState::COMPLETED);
+            continue;
+        }
+        process->changeState(ProcessState::READY);
+        executionOrder.push_back(&*process);
+    }
+
+    bool madeProgress = true;
+    while (madeProgress) {
+        madeProgress = false;
+        for (PCB* process : executionOrder) {
+            if (process->state == ProcessState::COMPLETED || process->state == ProcessState::FAILED) {
+                continue;
+            }
+
+            if (!resourceManager.allocate(*process, SIMULATED_RESOURCE_ID, 1)) {
+                process->changeState(ProcessState::WAITING);
+                continue;
+            }
+
+            const int previousRemainingTime = process->remainingTime;
+            const bool executed = executeWithSynchronization(process->processID);
+            const bool resourceReleased = resourceManager.release(*process, SIMULATED_RESOURCE_ID, 1);
+            if (!resourceReleased) {
+                process->changeState(ProcessState::FAILED);
+                continue;
+            }
+
+            if (executed && process->remainingTime < previousRemainingTime) {
+                madeProgress = true;
+            }
+        }
+    }
+
+    const SimulationSummary summary = getSimulationSummary();
+    return summary.completedTransactions == summary.totalTransactions &&
+           summary.waitingTransactions == 0 && summary.failedTransactions == 0;
+}
+
+SimulationSummary TransactionSimulator::getSimulationSummary() const noexcept {
+    SimulationSummary summary{static_cast<int>(processes.size()), 0, 0, 0};
+    for (const PCB& process : processes) {
+        switch (process.state) {
+            case ProcessState::COMPLETED:
+                ++summary.completedTransactions;
+                break;
+            case ProcessState::WAITING:
+                ++summary.waitingTransactions;
+                break;
+            case ProcessState::FAILED:
+                ++summary.failedTransactions;
+                break;
+            case ProcessState::NEW:
+            case ProcessState::READY:
+            case ProcessState::RUNNING:
+                break;
+        }
+    }
+    return summary;
+}

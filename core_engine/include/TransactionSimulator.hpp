@@ -12,6 +12,13 @@ enum class SchedulingAlgorithm {
     PRIORITY
 };
 
+struct SimulationSummary {
+    int totalTransactions;
+    int completedTransactions;
+    int waitingTransactions;
+    int failedTransactions;
+};
+
 class TransactionSimulator {
 public:
     static constexpr int SIMULATED_RESOURCE_ID = 1;
@@ -43,6 +50,11 @@ public:
 
     // Runs one unit while owning the shared transaction critical-section mutex.
     bool executeWithSynchronization(int processID);
+
+    // Loads, FCFS-schedules, and executes all supplied transactions deterministically.
+    // Returns true only when every transaction reaches COMPLETED.
+    bool runEndToEndSimulation(const std::vector<Transaction>& transactions);
+    SimulationSummary getSimulationSummary() const noexcept;
 
 private:
     std::vector<PCB> processes;

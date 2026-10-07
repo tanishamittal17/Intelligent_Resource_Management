@@ -190,6 +190,62 @@ int main() {
                "Mutex is released after one-unit process completion");
     }
 
+    {
+        const std::vector<Transaction> endToEndTransactions{
+            {801, TransactionType::DEPOSIT, 1, -1, 50.0, 2},
+            {802, TransactionType::TRANSFER, 2, 3, 25.0, 5},
+            {803, TransactionType::LOAN_PAYMENT, 4, -1, 10.0, 1}
+        };
+        TransactionSimulator endToEndSimulator;
+        expect(endToEndSimulator.runEndToEndSimulation(endToEndTransactions),
+               "End-to-end simulation completes all supplied transactions");
+
+        const SimulationSummary firstSummary = endToEndSimulator.getSimulationSummary();
+        expect(firstSummary.totalTransactions == 3,
+               "Simulation summary reports the total transaction count");
+        expect(firstSummary.completedTransactions == 3,
+               "Simulation summary reports all transactions completed");
+        expect(firstSummary.waitingTransactions == 0 && firstSummary.failedTransactions == 0,
+               "Successful simulation has no waiting or failed transactions");
+
+        const std::vector<PCB> firstRunProcesses = endToEndSimulator.getProcesses();
+        bool recordsPreserved = firstRunProcesses.size() == endToEndTransactions.size();
+        bool recordsCompleted = firstRunProcesses.size() == endToEndTransactions.size();
+        for (std::size_t index = 0; index < firstRunProcesses.size() &&
+                                    index < endToEndTransactions.size(); ++index) {
+            recordsPreserved = recordsPreserved &&
+                               firstRunProcesses[index].transactionID ==
+                                   endToEndTransactions[index].transactionID &&
+                               firstRunProcesses[index].priority == endToEndTransactions[index].priority;
+            recordsCompleted = recordsCompleted &&
+                               firstRunProcesses[index].state == ProcessState::COMPLETED &&
+                               firstRunProcesses[index].remainingTime == 0;
+        }
+        expect(recordsPreserved, "End-to-end PCBs preserve transaction IDs and priorities");
+        expect(recordsCompleted, "Every end-to-end PCB completes with zero remaining time");
+
+        expect(endToEndSimulator.runEndToEndSimulation(endToEndTransactions),
+               "Repeated end-to-end simulation also completes successfully");
+        const std::vector<PCB>& secondRunProcesses = endToEndSimulator.getProcesses();
+        bool sameTransactionOutcomes = secondRunProcesses.size() == firstRunProcesses.size();
+        for (std::size_t index = 0; index < secondRunProcesses.size() &&
+                                    index < firstRunProcesses.size(); ++index) {
+            sameTransactionOutcomes = sameTransactionOutcomes &&
+                                      secondRunProcesses[index].transactionID ==
+                                          firstRunProcesses[index].transactionID &&
+                                      secondRunProcesses[index].priority == firstRunProcesses[index].priority &&
+                                      secondRunProcesses[index].state == firstRunProcesses[index].state &&
+                                      secondRunProcesses[index].remainingTime ==
+                                          firstRunProcesses[index].remainingTime;
+        }
+        const SimulationSummary secondSummary = endToEndSimulator.getSimulationSummary();
+        expect(sameTransactionOutcomes &&
+               secondSummary.completedTransactions == firstSummary.completedTransactions &&
+               secondSummary.waitingTransactions == firstSummary.waitingTransactions &&
+               secondSummary.failedTransactions == firstSummary.failedTransactions,
+               "Repeated run produces the same transaction outcomes and summary");
+    }
+
     std::cout << "\nTransaction simulator tests: " << testsPassed << " passed, "
               << testsFailed << " failed.\n";
     return testsFailed == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
