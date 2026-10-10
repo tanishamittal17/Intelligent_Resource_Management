@@ -34,7 +34,11 @@ set(SOURCES
 )
 
 if(MYSQL_C_API_AVAILABLE)
-    list(APPEND SOURCES src/db/Database.cpp src/db/TransactionSimulatorDatabase.cpp)
+    list(APPEND SOURCES
+        src/db/Database.cpp
+        src/db/TransactionSimulatorDatabase.cpp
+        src/db/TransactionPipeline.cpp
+    )
 endif()
 
 add_executable(IntelligentResourceManager ${SOURCES})
@@ -98,6 +102,25 @@ if(MYSQL_C_API_AVAILABLE)
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "${MYSQL_C_API_DLL}" "$<TARGET_FILE_DIR:test_database>")
     endif()
+
+    add_executable(test_transaction_pipeline
+        tests/test_transaction_pipeline.cpp
+        src/db/TransactionPipeline.cpp
+        src/db/Database.cpp
+        src/transaction/TransactionSimulator.cpp
+        src/scheduler/Scheduler.cpp
+        src/resource/ResourceManager.cpp
+        src/resource/SynchronizationManager.cpp
+        src/transaction/PCB.cpp
+    )
+    target_include_directories(test_transaction_pipeline PRIVATE "${MYSQL_C_API_INCLUDE_DIR}")
+    target_link_libraries(test_transaction_pipeline PRIVATE "${MYSQL_C_API_LIBRARY}")
+
+    if(MYSQL_C_API_DLL)
+        add_custom_command(TARGET test_transaction_pipeline POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${MYSQL_C_API_DLL}" "$<TARGET_FILE_DIR:test_transaction_pipeline>")
+    endif()
 endif()
 
 enable_testing()
@@ -109,6 +132,7 @@ add_test(NAME synchronization_tests COMMAND test_synchronization)
 add_test(NAME deadlock_detector_tests COMMAND test_deadlock_detector)
 if(MYSQL_C_API_AVAILABLE)
     add_test(NAME database_tests COMMAND test_database)
+    add_test(NAME transaction_pipeline_tests COMMAND test_transaction_pipeline)
 endif()
 
 # Future: Add Google Test, MySQL connector paths, etc.

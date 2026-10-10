@@ -94,4 +94,8 @@ The simulator registers a shared `TRANSACTION_CRITICAL_SECTION` mutex through th
 
 After a simulation, `TransactionSimulator::updateDatabaseStatuses()` can synchronize terminal process results with MySQL: `COMPLETED` PCBs update their transaction to `COMPLETED`, and `FAILED` PCBs update it to `FAILED`. New, ready, running, and waiting PCBs do not write a terminal status. The database integration test temporarily changes one existing transaction status and restores its original value before exiting.
 
+## Database-Backed Transaction Pipeline
+
+`TransactionPipeline::runDatabaseBackedSimulation()` connects through `Database`, fetches the existing transaction rows, runs the deterministic C++ simulation, and writes only terminal PCB statuses back using each original transaction ID. It returns a readable error through `getLastError()` if it cannot connect, load records, complete the simulation, or update a status. The dedicated live integration test checks the seeded rows and restores all original statuses afterward; it does not alter balances, amounts, transaction types, schema, or seed data.
+
 MySQL Server and the existing `resource_management_db` database are already installed. This layer uses that database and the existing `Accounts` table; it does not create or modify the database or schema.
