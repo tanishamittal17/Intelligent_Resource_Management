@@ -1,6 +1,6 @@
 # Python Transaction Scheduling Environment
 
-This milestone adds a small, deterministic `SchedulingEnv` for exploring transaction scheduling before connecting it to a DRL agent. It uses only the Python standard library. It does not connect to MySQL, train an agent, or require PyTorch or Gymnasium.
+This package contains a small, deterministic `SchedulingEnv` and a beginner-friendly PyTorch Deep Q-Network (DQN) agent. It does not connect to MySQL or change the C++ engine.
 
 ## Workload and actions
 
@@ -25,6 +25,49 @@ The simple reward is:
 
 Invalid actions count toward the maximum decision limit but do not change process state or simulated time. Repeated calls after termination or truncation return the same observation and done flags.
 
+## Install and run on Windows
+
+From the project root in PowerShell:
+
+```powershell
+py -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -r drl_scheduler\requirements.txt
+python -m unittest discover -s drl_scheduler/tests -v
+```
+
+The only third-party dependency is PyTorch. Choose the PyTorch wheel appropriate
+for your machine if you need a specific CPU or CUDA build; the requirements file
+uses the standard `torch` package.
+
+## Use the DQN agent
+
+The agent reads the observation length and transaction count from an environment.
+Its output is one Q-value per possible action position. Before selecting an
+action, it reads each transaction's completion flag and masks action positions
+that are no longer in the ready queue. Exploration can be enabled with
+epsilon-greedy selection; pass `explore=False` to select the highest-valued
+eligible action.
+
+```python
+from drl_scheduler.agent import DQNAgent
+from drl_scheduler.env import SchedulingEnv
+
+env = SchedulingEnv()
+agent = DQNAgent.from_environment(env, seed=7)
+observation = env.reset()
+action = agent.select_action(observation)  # ready-queue index
+next_observation, reward, terminated, truncated, info = env.step(action)
+agent.remember(observation, action, reward, next_observation, terminated, truncated)
+loss = agent.train_step()  # None until a full replay batch is available
+```
+
+The replay buffer stores past transitions. Training uses a target network and
+the DQN Bellman target; terminal and truncated transitions do not bootstrap.
+This milestone provides the agent implementation and unit tests, not a long
+training run or a trained policy.
+
 ## Run tests
 
 From the project root, run:
@@ -33,8 +76,8 @@ From the project root, run:
 python -m unittest discover -s drl_scheduler/tests -v
 ```
 
-No package installation is needed for the environment or tests.
+Install PyTorch using the commands above before running the complete suite.
 
 ## Current limitations
 
-This is a compact scheduling model with one CPU executing one unit per action. It is not yet a Gymnasium environment, does not load transactions from MySQL, and does not model resource allocation, synchronization, financial balances, or a trained DRL agent.
+This is a compact scheduling model with one CPU executing one unit per action. It is not a Gymnasium environment, does not load transactions from MySQL, and does not model resource allocation, synchronization, or financial balances. The DQN is a learning implementation; a useful trained policy still requires an explicitly configured training run.
