@@ -1,10 +1,1 @@
-# Core ML & RL Dependencies
-torch
-gymnasium
-
-# Database
-mysql-connector-python
-
-# Utilities
-numpy
-pandas
+# The scheduling environment and its unittest suite use only the Python standard library.

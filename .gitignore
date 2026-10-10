@@ -13,6 +13,8 @@ __pycache__/
 *$py.class
 venv/
 env/
+!drl_scheduler/env/
+!drl_scheduler/env/**
 .env
 
 # Node/Frontend
